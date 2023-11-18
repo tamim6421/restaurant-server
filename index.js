@@ -13,6 +13,8 @@ app.use(express.json())
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.PROJECT_NAME}:${process.env.PROJECT_PASS}@cluster0.iimwc2a.mongodb.net/?retryWrites=true&w=majority`;
+// var uri = "mongodb://bossDb:gqL1ztj7tz4qFmXr@ac-cltusyz-shard-00-00.iimwc2a.mongodb.net:27017,ac-cltusyz-shard-00-01.iimwc2a.mongodb.net:27017,ac-cltusyz-shard-00-02.iimwc2a.mongodb.net:27017/?ssl=true&replicaSet=atlas-woqhjv-shard-0&authSource=admin&retryWrites=true&w=majority";
+
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -28,32 +30,31 @@ const usersCollection = client.db("bossDb").collection('users')
 const reviewCollection = client.db("bossDb").collection('reviews')
 const cartCollection = client.db("bossDb").collection('carts')
 
-const verifyToken = ( req, res, next) =>{
-  console.log('token iin the middleware',req.headers.authorization)
-  if(!req.headers.authorization){
-    return res.status(401).send({message: 'unauthorize-access'})
+const verifyToken = (req, res, next) => {
+  // console.log('inside verify token', req.headers.authorization);
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: 'unauthorized access' });
   }
-  const token = req.headers.authorization.split(' ')[1]
-  jwt.verify(token, process.env.ACCESS_TOKEN, (error, decoded) =>{
-    if(error){
-      return res.status(401).send({message: 'unauthorize-access'})
+  const token = req.headers.authorization.split(' ')[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: 'unauthorized access' })
     }
-    req.decoded = decoded
-    next()
-  } )
-  
+    req.decoded = decoded;
+    next();
+  })
 }
 
-const verifyAdmin = async (req, res, next) =>{
-    const email = req.decoded.email;
-    const query = {email: email}
-    const user = await usersCollection.findOne(query)
-    const isAdmin = user?.role === 'admin'
-    if(!isAdmin){
-      return res.status(403).send({message: 'forbidden-access'})
-    }
-    next()
-} 
+const verifyAdmin = async (req, res, next) => {
+  const email = req?.decoded?.email;
+  const query = { email: email };
+  const user = await usersCollection.findOne(query);
+  const isAdmin = user?.role === 'admin';
+  if (!isAdmin) {
+    return res.status(403).send({ message: 'forbidden access' });
+  }
+  next();
+}
 
 // jwt related api 
 app.post('/jwt', async(req, res) =>{
@@ -78,22 +79,38 @@ app.get('/users', verifyToken, verifyAdmin, async(req, res) =>{
   } catch (error) {
     console.log(error)
   }
-
 })
 
 // get admin users data 
-app.get('/users/admin/:email', verifyToken, verifyAdmin, async(req, res) =>{
-  const email = req.params.email 
-  if(email !== req.decoded.email){
-    return res.status(403).send({message: 'forbidden access'})
+// app.get('/users/admin/:email', verifyToken, verifyAdmin, async(req, res) =>{
+//   const email = req.params.email 
+//   console.log('email in the user admin ',email)
+//   if(email !== req.decoded.email){
+//     return res.status(403).send({message: 'forbidden access'})
+//   }
+//   const query = {email: email}
+//   const user = await usersCollection.findOne(query)
+//   let admin = false 
+//   if(user){
+//     admin = user?.role === 'admin';
+//   }
+//   res.send({admin})
+// })
+
+app.get('/users/admin/:email', verifyToken, async (req, res) => {
+  const email = req.params.email;
+
+  if (email !== req.decoded.email) {
+    return res.status(403).send({ message: 'forbidden access' })
   }
-  const query = {email: email}
-  const user = await usersCollection.findOne(query)
-  let admin = false 
-  if(user){
+
+  const query = { email: email };
+  const user = await usersCollection.findOne(query);
+  let admin = false;
+  if (user) {
     admin = user?.role === 'admin';
   }
-  res.send({admin})
+  res.send({ admin });
 })
 
 
@@ -130,7 +147,7 @@ try {
 })
 
 // make user admin 
-app.patch('/users/admin/:id', verifyAdmin, verifyToken, async(req, res) =>{
+app.patch('/users/admin/:id', verifyToken, verifyAdmin, async(req, res) =>{
  try {
   const id = req.params.id 
   const filter = {_id: new ObjectId(id)}
@@ -255,6 +272,7 @@ app.get('/carts', async(req, res) =>{
     console.log(error)
   }
 })
+
 
 // delete cart items 
 app.delete('/carts/:id', async(req, res) =>{
