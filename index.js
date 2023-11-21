@@ -335,6 +335,90 @@ app.get('/payments/:email', verifyToken, async(req, res) =>{
   res.send(result)
 })
 
+
+// get the admin stats and total calculations 
+app.get('/admin-stats',verifyToken, verifyAdmin, async(req, res) =>{
+  const users = await usersCollection.estimatedDocumentCount()
+  const menuItems = await menuCollection.estimatedDocumentCount()
+  const orders = await paymentCollection.estimatedDocumentCount()
+
+
+  // this is not the best way to get total 
+
+  // const payment = await paymentCollection.find().toArray()
+  // const revenue = payment.reduce( (total, item) => total + item.price ,0)
+
+  // the best way to get revenue 
+
+  const result = await paymentCollection.aggregate([
+    {
+      $group: {
+        _id : null,
+        totalRevenue: {
+          $sum: '$price'
+        }
+      }
+    }
+  ]).toArray()
+
+const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+  res.send({
+    users,
+    menuItems,
+     orders,
+     revenue
+  })
+})
+
+
+// using aggregate  pipeline 
+app.get('/order-stats',verifyToken, verifyAdmin, async(req, res) =>{
+  const result = await paymentCollection.aggregate([
+    {
+      $unwind:'$menuItemIds'
+    },
+    {
+      $lookup: {
+        from: 'menu',
+        // localField: 'menuItemIds',
+        let: { objectId: { $toObjectId: "$menuItemIds" } },
+        pipeline: [
+            {
+                $match: {
+                    $expr: {
+                        $eq: ["$$objectId", "$_id"]
+                    }
+                }
+            }
+        ],
+        as: 'menuItems'
+      }
+    },
+    {
+      $unwind: '$menuItems'
+    },
+    {
+      $group: {
+        _id: '$menuItems.category',
+        quantity:{ $sum: 1 },
+        revenue: { $sum: '$menuItems.price'} 
+      }
+    },
+      
+    {
+      $project: {
+        _id: 0,
+        category: '$_id',
+        quantity: '$quantity',
+        revenue: '$revenue'
+      }
+    }
+  ]).toArray()
+  res.send(result)
+})
+
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
